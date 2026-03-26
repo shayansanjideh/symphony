@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""Symphony Orchestrator — coordinates Planner → Generator ↔ Evaluator loop."""
+
+import argparse
+import os
+import sys
+import time
+
+from agents.planner import PlannerAgent
+from agents.generator import GeneratorAgent
+from agents.evaluator import EvaluatorAgent
+from config import SymphonyConfig
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Symphony: multi-agent orchestration for Claude Code")
+    parser.add_argument("--prompt", required=True, help="Feature description (1-4 sentences)")
+    parser.add_argument("--iterations", type=int, default=3, help="Max Generator ↔ Evaluator cycles")
+    parser.add_argument("--model", default="sonnet", choices=["sonnet", "opus", "haiku"], help="Model for all agents")
+    parser.add_argument("--planner-model", default=None, help="Override model for Planner")
+    parser.add_argument("--generator-model", default=None, help="Override model for Generator")
+    parser.add_argument("--evaluator-model", default=None, help="Override model for Evaluator")
+    parser.add_argument("--eval-mode", default="code_review", choices=["code_review", "playwright", "both"])
+    parser.add_argument("--spec", default=None, help="Path to existing spec (skips Planner)")
+    parser.add_argument("--branch", default=None, help="Git branch name")
+    parser.add_argument("--dry-run", action="store_true", help="Run Planner only, show spec, stop")
+    return parser.parse_args()
+
+
+def ensure_directories():
+    """Create handoffs/ and logs/ directories if they don't exist."""
+    os.makedirs("handoffs", exist_ok=True)
+    os.makedirs("logs", exist_ok=True)
+
+
+def run(args):
+    config = SymphonyConfig(
+        model=args.model,
+        planner_model=args.planner_model or args.model,
+        generator_model=args.generator_model or args.model,
+        evaluator_model=args.evaluator_model or args.model,
+        max_iterations=args.iterations,
+        eval_mode=args.eval_mode,
+        branch=args.branch,
+    )
+
+    ensure_directories()
+    run_id = f"{int(time.time())}"
+
+    # Phase 1: Plan
+    if args.spec:
+        print(f"[symphony] Using provided spec: {args.spec}")
+        with open(args.spec, "r") as f:
+            spec = f.read()
+        with open("handoffs/spec.md", "w") as f:
+            f.write(spec)
+    else:
+        print("[symphony] Phase 1: Planning...")
+        planner = PlannerAgent(config, run_id)
+        spec = planner.run(args.prompt)
+        with open("handoffs/spec.md", "w") as f:
+            f.write(spec)
+        print("[symphony] Spec written to handoffs/spec.md")
+
+    if args.dry_run:
+        print("[symphony] Dry run complete. Review the spec at handoffs/spec.md")
+        print(spec)
+        return
+
+    # Phase 2-3: Generate ↔ Evaluate
+    generator = GeneratorAgent(config, run_id)
+    evaluator = EvaluatorAgent(config, run_id)
+    feedback = None
+
+    for i in range(config.max_iterations):
+        iteration = i + 1
+
+        # Generate
+        print(f"[symphony] Phase 2: Building (iteration {iteration}/{config.max_iterations})...")
+        generator.run(spec, feedback, iteration)
+
+        # Evaluate
+        print(f"[symphony] Phase 3: Evaluating (iteration {iteration}/{config.max_iterations})...")
+        eval_output = evaluator.run(spec, iteration)
+        with open("handoffs/eval_feedback.md", "w") as f:
+            f.write(eval_output)
+
+        if "VERDICT: PASS" in eval_output:
+            print(f"[symphony] PASS after {iteration} iteration(s)")
+            return
+
+        print(f"[symphony] FAIL on iteration {iteration}. Evaluator found issues.")
+        feedback = eval_output
+
+    print(f"[symphony] FAIL after {config.max_iterations} iterations.")
+    print("[symphony] Review handoffs/eval_feedback.md for remaining issues.")
+
+
+def main():
+    args = parse_args()
+    try:
+        run(args)
+    except KeyboardInterrupt:
+        print("\n[symphony] Interrupted by user.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"[symphony] Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

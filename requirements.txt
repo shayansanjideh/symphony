@@ -1,0 +1,2 @@
+# Symphony has no external dependencies beyond Python 3.10+ stdlib.
+# The orchestrator invokes `claude` CLI as a subprocess.
