@@ -31,6 +31,11 @@ class BaseAgent:
             raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
         return prompt_path.read_text()
 
+    @property
+    def mcp_config_path(self) -> str | None:
+        """Override in subclasses to provide an MCP server config."""
+        return None
+
     def invoke_claude(self, message: str) -> str:
         """Invoke claude CLI with the given message and return the output."""
         cmd = [
@@ -42,10 +47,13 @@ class BaseAgent:
         if self.allowed_tools:
             cmd.extend(["--allowedTools", ",".join(self.allowed_tools)])
 
+        if self.mcp_config_path:
+            cmd.extend(["--mcp-config", self.mcp_config_path])
+
         self.log("invoke", {"message_preview": message[:200], "model": self.model})
 
         start = time.time()
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.config.agent_timeout)
         elapsed = time.time() - start
 
         self.log("result", {
