@@ -10,8 +10,9 @@ class SymphonyConfig:
     generator_model: str = "sonnet"
     evaluator_model: str = "sonnet"
     max_iterations: int = 3
-    eval_mode: str = "code_review"
+    eval_mode: str = "both"  # "code_review", "playwright", or "both"
     branch: str | None = None
+    agent_timeout: int = 900  # seconds per agent invocation
 
     # Paths
     prompts_dir: str = "prompts"
