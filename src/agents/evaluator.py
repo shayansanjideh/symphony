@@ -26,8 +26,6 @@ class EvaluatorAgent(BaseAgent):
         return None
 
     def run(self, spec: str, iteration: int, prior_feedback: str | None = None) -> str:
-        from pathlib import Path
-
         browser_instructions = ""
         if self.config.eval_mode in ("playwright", "both"):
             browser_instructions = (

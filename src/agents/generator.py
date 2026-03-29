@@ -1,5 +1,7 @@
 """Generator agent — implements the spec and addresses eval feedback."""
 
+from pathlib import Path
+
 from agents.base import BaseAgent
 
 
@@ -15,14 +17,13 @@ class GeneratorAgent(BaseAgent):
             message = (
                 f"Implement the following feature specification.\n\n"
                 f"<spec>\n{spec}\n</spec>\n\n"
-                f"The spec is also saved at handoffs/spec.md for reference.\n\n"
+                f"The spec is also saved at {Path(self.config.handoffs_dir) / 'spec.md'} for reference.\n\n"
                 f"Create a feature branch (if the branch already exists, check it out instead "
                 f"of failing), implement all acceptance criteria, "
                 f"commit your changes, and run the build to verify.\n\n"
-                f"Write a summary of what you did to handoffs/generator_state.md."
+                f"Write a summary of what you did to {Path(self.config.handoffs_dir) / 'generator_state.md'}."
             )
         else:
-            from pathlib import Path
             eval_feedback_path = Path(self.config.handoffs_dir) / "eval_feedback.md"
             generator_state_path = Path(self.config.handoffs_dir) / "generator_state.md"
             message = (
