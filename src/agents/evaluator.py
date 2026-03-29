@@ -16,9 +16,13 @@ class EvaluatorAgent(BaseAgent):
     def mcp_config_path(self) -> str | None:
         """Return the Playwright MCP config path if eval_mode includes browser testing."""
         if self.config.eval_mode in ("playwright", "both"):
-            config_path = Path(self.config.prompts_dir).parent / "playwright-mcp.json"
+            # Check relative to CWD first, then relative to Symphony root
+            config_path = Path("playwright-mcp.json")
             if config_path.exists():
                 return str(config_path)
+            symphony_path = self._src_dir / "playwright-mcp.json"
+            if symphony_path.exists():
+                return str(symphony_path)
         return None
 
     def run(self, spec: str, iteration: int) -> str:

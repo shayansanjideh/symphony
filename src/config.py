@@ -12,7 +12,7 @@ class SymphonyConfig:
     max_iterations: int = 3
     eval_mode: str = "both"  # "code_review", "playwright", or "both"
     branch: str | None = None
-    agent_timeout: int = 900  # seconds per agent invocation
+    agent_timeout: int = 1800  # seconds per agent invocation (30 min)
 
     # Paths
     prompts_dir: str = "prompts"

@@ -15,6 +15,10 @@ class BaseAgent:
     name: str = "base"
     allowed_tools: list[str] = []
 
+    # Resolve the Symphony source directory once, so prompt paths work even when
+    # Symphony is symlinked into a project and CWD is the project root.
+    _src_dir: Path = Path(__file__).resolve().parent.parent  # symphony/src/../ → symphony/
+
     def __init__(self, config: SymphonyConfig, run_id: str):
         self.config = config
         self.run_id = run_id
@@ -25,8 +29,31 @@ class BaseAgent:
         return getattr(self.config, f"{self.name}_model", self.config.model)
 
     @property
+    def prompts_dir(self) -> Path:
+        """Resolve the prompts directory.
+
+        First checks relative to CWD (allows user overrides), then falls back
+        to the directory relative to Symphony's own source tree.  This way the
+        prompts are always found even when Symphony is symlinked into a project
+        and CWD != the symphony directory.
+        """
+        cwd_path = Path(self.config.prompts_dir)
+        if cwd_path.is_dir():
+            return cwd_path
+
+        # Fall back to <symphony_root>/prompts
+        symphony_path = self._src_dir / self.config.prompts_dir
+        if symphony_path.is_dir():
+            return symphony_path
+
+        raise FileNotFoundError(
+            f"Prompts directory not found at '{cwd_path}' (CWD) or '{symphony_path}' (Symphony root). "
+            f"Ensure the prompts/ directory exists."
+        )
+
+    @property
     def system_prompt(self) -> str:
-        prompt_path = Path(self.config.prompts_dir) / f"{self.name}.md"
+        prompt_path = self.prompts_dir / f"{self.name}.md"
         if not prompt_path.exists():
             raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
         return prompt_path.read_text()
