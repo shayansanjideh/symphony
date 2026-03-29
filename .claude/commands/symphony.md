@@ -19,6 +19,8 @@ Parse these options (all optional):
 - `--branch NAME` — git branch name (default: auto-generated from prompt)
 - `--dry-run` — run only the Planner, show the spec, and stop for user approval
 - `--eval-mode MODE` (default: code_review) — `code_review`, `playwright`, or `both`
+- `--verbose` — widen JSONL log previews to 2000 chars (default: 500)
+- `--base-branch BRANCH` — base branch for git diff in Evaluator (default: auto-detected from HEAD at run start)
 
 Everything after the options is the `<prompt>`.
 
@@ -49,6 +51,8 @@ python3 "$ORCH" \
   [--spec <PATH>] \
   [--branch <NAME>] \
   [--dry-run] \
+  [--verbose] \
+  [--base-branch <BRANCH>] \
   [--planner-model <MODEL>] \
   [--generator-model <MODEL>] \
   [--evaluator-model <MODEL>]

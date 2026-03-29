@@ -193,6 +193,8 @@ When an agent evaluates its own output, it exhibits **self-leniency** — confid
 | `--spec` | — | Path to existing spec (skips Planner) |
 | `--branch` | auto | Git branch name for the feature |
 | `--dry-run` | false | Run only Planner, show spec, stop for approval |
+| `--verbose` | `false` | Widen JSONL log previews to 2000 chars (default: 500) |
+| `--base-branch` | `auto` | Base branch for git diff in Evaluator (default: auto-detected from HEAD) |
 
 ---
 
