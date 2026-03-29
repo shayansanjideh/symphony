@@ -77,6 +77,27 @@ Each criterion must be independently verifiable by the Evaluator.
 - Include specific file paths and type names you discovered — the Generator needs this context.
 - If the existing codebase has patterns (e.g., all components use a specific hook pattern), document them. The Generator should follow existing conventions.
 
+## Spec Completeness — Preventing Generator Fabrication
+
+The Generator will fill gaps in your spec by guessing. Every guess costs an iteration. Prevent this by being exhaustive about external interfaces:
+
+### External Interfaces (APIs, SDKs, Services, Contracts)
+- Every external call must include the **exact function/endpoint name**, not just a description
+- Include **full signatures** — parameter names, types, and order. If you can determine them from the codebase or docs, include them. If not, explicitly state "SIGNATURE UNKNOWN — Generator must verify before implementing"
+- Include actual URLs, not just descriptions (e.g., the real endpoint, not "the API endpoint")
+- Do NOT leave interface details for the Generator to guess — if you don't know them, say so
+
+### Hardcoded Data (Registries, Config, Static Lists)
+- If the spec says "N items", provide all N or explicitly state the actual count available
+- Include the exact format and schema for each entry
+- Do NOT say "include all items" — list them or reference the exact source file/URL
+
+### Algorithms and Formulas
+- If the feature involves calculations, provide the **exact formula**
+- Include a worked example with concrete numbers
+- Bad: "apply fee calculation"
+- Good: "fee = principal * (rateBps / 10000). Example: principal=1000, rateBps=50 → fee = 1000 * 50 / 10000 = 5"
+
 ## Tools Available
 
 - `Read` — Read file contents
