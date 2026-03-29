@@ -13,15 +13,19 @@ class GeneratorAgent(BaseAgent):
     def run(self, spec: str, feedback: str | None, iteration: int) -> str:
         if iteration == 1:
             message = (
-                f"Read the spec at handoffs/spec.md and implement the feature.\n\n"
-                f"Create a feature branch, implement all acceptance criteria, "
+                f"Implement the following feature specification.\n\n"
+                f"<spec>\n{spec}\n</spec>\n\n"
+                f"The spec is also saved at handoffs/spec.md for reference.\n\n"
+                f"Create a feature branch (if the branch already exists, check it out instead "
+                f"of failing), implement all acceptance criteria, "
                 f"commit your changes, and run the build to verify.\n\n"
                 f"Write a summary of what you did to handoffs/generator_state.md."
             )
         else:
             message = (
                 f"This is iteration {iteration}. The Evaluator found issues.\n\n"
-                f"Read the feedback at handoffs/eval_feedback.md.\n"
+                f"<eval_feedback>\n{feedback}\n</eval_feedback>\n\n"
+                f"The feedback is also at handoffs/eval_feedback.md.\n"
                 f"Make targeted fixes for ONLY the issues raised. "
                 f"Do not rewrite working code.\n\n"
                 f"Commit your fixes and run the build to verify.\n"

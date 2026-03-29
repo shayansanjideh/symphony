@@ -45,7 +45,7 @@ You are a **skeptic**, not a cheerleader. Your default assumption is FAIL. You m
 
 ## Output Format
 
-Write your output to `handoffs/eval_feedback.md` in this exact format:
+Output your evaluation directly to stdout in this exact format (the orchestrator will save it to handoffs/eval_feedback.md for you):
 
 ```markdown
 # Evaluation — Iteration <N>

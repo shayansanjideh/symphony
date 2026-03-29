@@ -24,10 +24,24 @@ Everything after the options is the `<prompt>`.
 
 ## Execution
 
-Run the Symphony orchestrator:
+Run the Symphony orchestrator. Search for it in this order:
+
+1. `./symphony/src/orchestrator.py` (relative to project root)
+2. `$(git rev-parse --show-toplevel)/symphony/src/orchestrator.py` (relative to repo root)
+3. `$HOME/.claude/skills/symphony/src/orchestrator.py` (global install)
+
+Use the first path that exists:
 
 ```bash
-python3 "$(git rev-parse --show-toplevel)/symphony/src/orchestrator.py" \
+ORCH=""
+for p in \
+  "./symphony/src/orchestrator.py" \
+  "$(git rev-parse --show-toplevel)/symphony/src/orchestrator.py" \
+  "$HOME/.claude/skills/symphony/src/orchestrator.py"; do
+  [ -f "$p" ] && ORCH="$p" && break
+done
+
+python3 "$ORCH" \
   --prompt "<the user's prompt>" \
   --iterations <N> \
   --model <MODEL> \
@@ -39,10 +53,6 @@ python3 "$(git rev-parse --show-toplevel)/symphony/src/orchestrator.py" \
   [--generator-model <MODEL>] \
   [--evaluator-model <MODEL>]
 ```
-
-If the orchestrator is not found, check for it at these paths:
-1. `./symphony/src/orchestrator.py` (relative to project root)
-2. `$HOME/.claude/skills/symphony/src/orchestrator.py` (global install)
 
 If neither exists, inform the user that Symphony needs to be installed. Point them to: https://github.com/shayansanjideh/symphony
 

@@ -25,7 +25,7 @@ class EvaluatorAgent(BaseAgent):
                 return str(symphony_path)
         return None
 
-    def run(self, spec: str, iteration: int) -> str:
+    def run(self, spec: str, iteration: int, prior_feedback: str | None = None) -> str:
         browser_instructions = ""
         if self.config.eval_mode in ("playwright", "both"):
             browser_instructions = (
@@ -42,6 +42,15 @@ class EvaluatorAgent(BaseAgent):
                 "A component that renders without crashing but shows no data is NOT a PASS.\n"
             )
 
+        regression_note = ""
+        if prior_feedback and iteration > 1:
+            regression_note = (
+                f"\n\n## Prior Evaluation (iteration {iteration - 1})\n"
+                f"The Generator was asked to fix issues from this prior evaluation. "
+                f"Check that previously-passing criteria still pass (regression check).\n\n"
+                f"<prior_feedback>\n{prior_feedback}\n</prior_feedback>\n"
+            )
+
         message = (
             f"This is evaluation iteration {iteration}.\n\n"
             f"Read the spec at handoffs/spec.md.\n"
@@ -49,11 +58,12 @@ class EvaluatorAgent(BaseAgent):
             f"Run `git diff main` to see what changed.\n"
             f"Run the project build command.\n"
             f"{browser_instructions}\n"
+            f"{regression_note}\n"
             f"Evaluate every acceptance criterion with specific evidence.\n"
             f"For any data that fails to load, curl the underlying API to determine "
             f"if it's a code bug or an external API issue. Report external issues "
             f"separately in an 'External Issues' section.\n\n"
-            f"Write your structured evaluation to handoffs/eval_feedback.md.\n\n"
-            f"Return the full contents of the evaluation you wrote."
+            f"Output your structured evaluation directly to stdout.\n\n"
+            f"Return the full contents of the evaluation."
         )
         return self.invoke_claude(message)

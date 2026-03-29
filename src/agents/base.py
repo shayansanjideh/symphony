@@ -29,6 +29,10 @@ class BaseAgent:
         return getattr(self.config, f"{self.name}_model", self.config.model)
 
     @property
+    def _preview_len(self) -> int:
+        return 2000 if self.config.verbose else 500
+
+    @property
     def prompts_dir(self) -> Path:
         """Resolve the prompts directory.
 
@@ -64,7 +68,10 @@ class BaseAgent:
         return None
 
     def invoke_claude(self, message: str) -> str:
-        """Invoke claude CLI with the given message and return the output."""
+        """Invoke claude CLI with the given message, streaming output live.
+
+        Retries once on timeout or non-zero exit (transient CLI errors).
+        """
         cmd = [
             "claude", "-p", message,
             "--model", self.model,
@@ -79,23 +86,55 @@ class BaseAgent:
 
         self.log("invoke", {"message_preview": message[:200], "model": self.model})
 
+        max_attempts = 2
+        last_error = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                stdout, stderr, returncode, elapsed = self._run_streaming(cmd)
+            except subprocess.TimeoutExpired:
+                if attempt < max_attempts:
+                    self.log("retry", {"reason": "timeout", "attempt": attempt})
+                    time.sleep(5 * attempt)
+                    continue
+                raise RuntimeError(f"{self.name} agent timed out after {max_attempts} attempts")
+
+            self.log("result", {
+                "exit_code": returncode,
+                "elapsed_seconds": round(elapsed, 1),
+                "stdout_preview": stdout[:self._preview_len] if stdout else "",
+                "stderr_preview": stderr[:self._preview_len] if stderr else "",
+            })
+
+            if returncode == 0:
+                return stdout
+
+            last_error = f"{self.name} agent failed (exit {returncode}): {stderr[:self._preview_len]}"
+            if attempt < max_attempts:
+                self.log("retry", {"reason": f"exit_{returncode}", "attempt": attempt})
+                time.sleep(5 * attempt)
+
+        raise RuntimeError(last_error)
+
+    def _run_streaming(self, cmd: list[str]) -> tuple[str, str, int, float]:
+        """Run a subprocess, streaming stdout line-by-line while capturing it."""
+        import sys
         start = time.time()
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.config.agent_timeout)
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        stdout_lines = []
+        try:
+            for line in proc.stdout:
+                sys.stdout.write(f"  [{self.name}] {line}")
+                sys.stdout.flush()
+                stdout_lines.append(line)
+            proc.wait(timeout=self.config.agent_timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            raise
         elapsed = time.time() - start
-
-        self.log("result", {
-            "exit_code": result.returncode,
-            "elapsed_seconds": round(elapsed, 1),
-            "stdout_preview": result.stdout[:500] if result.stdout else "",
-            "stderr_preview": result.stderr[:500] if result.stderr else "",
-        })
-
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"{self.name} agent failed (exit {result.returncode}): {result.stderr[:500]}"
-            )
-
-        return result.stdout
+        stderr = proc.stderr.read() if proc.stderr else ""
+        return "".join(stdout_lines), stderr, proc.returncode, elapsed
 
     def log(self, event: str, data: dict):
         """Append a log entry to the agent's JSONL log file."""

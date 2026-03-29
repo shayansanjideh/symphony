@@ -241,8 +241,7 @@ symphony/
 │   ├── planner.md                # Planner system prompt
 │   ├── generator.md              # Generator system prompt
 │   └── evaluator.md              # Evaluator system prompt (with calibration examples)
-└── examples/
-    └── dark-mode-toggle/         # Example run with full handoff files
+└── examples/                     # (planned) Example runs with full handoff files
 ```
 
 ---

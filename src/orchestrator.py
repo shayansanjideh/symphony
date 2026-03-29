@@ -21,6 +21,21 @@ def extract_spec(planner_output: str) -> str:
     the actual spec.  This function extracts the spec content, falling back
     to the full output if no clear spec boundary is found.
     """
+    def _strip_trailing_chat(text: str) -> str:
+        """Remove trailing conversational text that isn't part of the spec."""
+        # Stop at lines that look like conversational wrap-up
+        lines = text.split("\n")
+        cutoff = len(lines)
+        for i, line in enumerate(lines):
+            stripped = line.strip().lower()
+            if i > 5 and re.match(
+                r"^(let me know|feel free|happy to|i hope|if you|shall i|want me to|do you)",
+                stripped,
+            ):
+                cutoff = i
+                break
+        return "\n".join(lines[:cutoff]).strip()
+
     # Look for the spec starting with the expected heading
     match = re.search(
         r"(# Feature Specification:.*)",
@@ -28,7 +43,7 @@ def extract_spec(planner_output: str) -> str:
         re.DOTALL,
     )
     if match:
-        return match.group(1).strip()
+        return _strip_trailing_chat(match.group(1))
 
     # Fallback: look for any markdown heading that looks like a spec
     match = re.search(
@@ -37,7 +52,7 @@ def extract_spec(planner_output: str) -> str:
         re.DOTALL | re.IGNORECASE,
     )
     if match:
-        return match.group(1).strip()
+        return _strip_trailing_chat(match.group(1))
 
     # Last resort: return the full output
     return planner_output.strip()
@@ -55,6 +70,7 @@ def parse_args():
     parser.add_argument("--spec", default=None, help="Path to existing spec (skips Planner)")
     parser.add_argument("--branch", default=None, help="Git branch name")
     parser.add_argument("--dry-run", action="store_true", help="Run Planner only, show spec, stop")
+    parser.add_argument("--verbose", action="store_true", help="Widen JSONL log previews to 2000 chars (default: 500)")
     return parser.parse_args()
 
 
@@ -73,6 +89,7 @@ def run(args):
         max_iterations=args.iterations,
         eval_mode=args.eval_mode,
         branch=args.branch,
+        verbose=args.verbose,
     )
 
     ensure_directories()
@@ -113,11 +130,11 @@ def run(args):
 
         # Evaluate
         print(f"[symphony] Phase 3: Evaluating (iteration {iteration}/{config.max_iterations})...")
-        eval_output = evaluator.run(spec, iteration)
+        eval_output = evaluator.run(spec, iteration, prior_feedback=feedback)
         with open("handoffs/eval_feedback.md", "w") as f:
             f.write(eval_output)
 
-        if "VERDICT: PASS" in eval_output:
+        if re.search(r"#*\s*VERDICT:\s*PASS", eval_output, re.IGNORECASE):
             print(f"[symphony] PASS after {iteration} iteration(s)")
             return
 
