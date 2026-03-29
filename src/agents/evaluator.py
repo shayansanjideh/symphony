@@ -25,7 +25,7 @@ class EvaluatorAgent(BaseAgent):
                 return str(symphony_path)
         return None
 
-    def run(self, spec: str, iteration: int, prior_feedback: str | None = None) -> str:
+    def run(self, spec: str, iteration: int, prior_feedback: str | None = None) -> tuple[str, dict]:
         browser_instructions = ""
         if self.config.eval_mode in ("playwright", "both"):
             browser_instructions = (
@@ -68,4 +68,5 @@ class EvaluatorAgent(BaseAgent):
             f"Output your structured evaluation directly to stdout.\n\n"
             f"Return the full contents of the evaluation."
         )
-        return self.invoke_claude(message)
+        text, usage = self.invoke_claude(message)
+        return text, usage

@@ -12,7 +12,7 @@ class GeneratorAgent(BaseAgent):
     def allowed_tools(self) -> list[str]:
         return self.config.generator_tools
 
-    def run(self, spec: str, feedback: str | None, iteration: int) -> str:
+    def run(self, spec: str, feedback: str | None, iteration: int) -> tuple[str, dict]:
         if iteration == 1:
             message = (
                 f"Implement the following feature specification.\n\n"
@@ -40,4 +40,5 @@ class GeneratorAgent(BaseAgent):
         if self.config.branch and iteration == 1:
             message += f"\n\nUse branch name: {self.config.branch}"
 
-        return self.invoke_claude(message)
+        text, usage = self.invoke_claude(message)
+        return text, usage
