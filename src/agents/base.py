@@ -134,8 +134,6 @@ class BaseAgent:
         Returns a 5-tuple: (stdout, stderr, returncode, elapsed, usage_dict)
         where usage_dict = {"input_tokens": int, "output_tokens": int}.
         """
-        import json as _json
-
         start = time.time()
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
@@ -160,8 +158,8 @@ class BaseAgent:
                 if not stripped:
                     continue
                 try:
-                    obj = _json.loads(stripped)
-                except _json.JSONDecodeError:
+                    obj = json.loads(stripped)
+                except json.JSONDecodeError:
                     continue
 
                 event_type = obj.get("type")

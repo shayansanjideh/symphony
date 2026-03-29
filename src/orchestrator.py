@@ -120,6 +120,11 @@ def ensure_directories(config):
 
 
 def run(args):
+    # Mutual exclusion check: --continue and --spec cannot be used together
+    if args.resume and args.spec:
+        print("[symphony] Error: --continue and --spec are mutually exclusive.")
+        sys.exit(1)
+
     # Detect the base branch before any commits are made
     if args.base_branch:
         base_branch = args.base_branch
@@ -143,11 +148,6 @@ def run(args):
         base_branch=base_branch,
         verbose=args.verbose,
     )
-
-    # Mutual exclusion check: --continue and --spec cannot be used together
-    if args.resume and args.spec:
-        print("[symphony] Error: --continue and --spec are mutually exclusive.")
-        sys.exit(1)
 
     ensure_directories(config)
 
