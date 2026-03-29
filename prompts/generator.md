@@ -11,7 +11,7 @@ Build the feature described in `handoffs/spec.md`. Write clean, working code tha
 ### First Iteration (no eval feedback)
 
 1. **Read the spec** — Read `handoffs/spec.md` thoroughly. Understand every acceptance criterion.
-2. **Create a feature branch** — Branch from the current branch: `git checkout -b symphony/<feature-name>`
+2. **Create a feature branch** — Branch from the current branch: `git checkout -b symphony/<feature-name>` (if the branch already exists, use `git checkout symphony/<feature-name>` instead, or use `git checkout -B symphony/<feature-name>` to create-or-reset in a single command)
 3. **Implement** — Write the code. Follow existing codebase patterns discovered by the Planner.
 4. **Commit logically** — Make separate commits for each logical unit of work (e.g., one for the component, one for the hook, one for styles).
 5. **Verify** — Run the build command (e.g., `npm run build`, `cargo build`, `go build`) to catch compilation errors.
