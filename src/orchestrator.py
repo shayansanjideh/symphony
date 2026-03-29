@@ -82,7 +82,7 @@ def extract_spec(planner_output: str) -> str:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Symphony: multi-agent orchestration for Claude Code")
-    parser.add_argument("--prompt", required=True, help="Feature description (1-4 sentences)")
+    parser.add_argument("--prompt", required=False, default="", help="Feature description (1-4 sentences)")
     parser.add_argument("--iterations", type=int, default=3, help="Max Generator ↔ Evaluator cycles")
     parser.add_argument("--model", default="sonnet", choices=["sonnet", "opus", "haiku"], help="Model for all agents")
     parser.add_argument("--planner-model", default=None, help="Override model for Planner")
@@ -94,7 +94,23 @@ def parse_args():
     parser.add_argument("--dry-run", action="store_true", help="Run Planner only, show spec, stop")
     parser.add_argument("--verbose", action="store_true", help="Widen JSONL log previews to 2000 chars (default: 500)")
     parser.add_argument("--base-branch", default=None, help="Base branch for git diff (default: auto-detected from HEAD)")
-    return parser.parse_args()
+    parser.add_argument("--continue", dest="resume", action="store_true",
+                        help="Resume from existing handoffs/spec.md and handoffs/eval_feedback.md, skipping Planner phase")
+    args = parser.parse_args()
+    if not args.resume and not args.prompt:
+        parser.error("--prompt is required unless --continue is used")
+    return args
+
+
+def _print_token_summary(per_agent_tokens: dict, total_input: int, total_output: int):
+    """Print a token usage summary block to stdout."""
+    print("[symphony] Token usage:")
+    agent_order = [("planner", "planner"), ("generator", "generator"), ("evaluator", "evaluator")]
+    for key, label in agent_order:
+        if key in per_agent_tokens:
+            d = per_agent_tokens[key]
+            print(f"  {label}:   {d['input_tokens']} in / {d['output_tokens']} out")
+    print(f"  TOTAL:     {total_input} in / {total_output} out")
 
 
 def ensure_directories(config):
@@ -128,74 +144,113 @@ def run(args):
         verbose=args.verbose,
     )
 
+    # Mutual exclusion check: --continue and --spec cannot be used together
+    if args.resume and args.spec:
+        print("[symphony] Error: --continue and --spec are mutually exclusive.")
+        sys.exit(1)
+
     ensure_directories(config)
-
-    # Read the --spec file BEFORE clearing handoffs, in case the spec
-    # lives inside the handoffs directory (e.g., handoffs/spec.md from
-    # a previous run).
-    provided_spec = None
-    if args.spec:
-        print(f"[symphony] Using provided spec: {args.spec}")
-        with open(args.spec, "r") as f:
-            provided_spec = f.read()
-
-    # Clear stale handoffs from previous run
-    stale_files = list(Path(config.handoffs_dir).glob("*"))
-    if stale_files:
-        print("[symphony] Cleared stale handoffs.")
-        for f in stale_files:
-            if f.is_file():
-                f.unlink()
 
     run_id = f"{int(time.time())}"
 
     spec_path = Path(config.handoffs_dir) / "spec.md"
     eval_feedback_path = Path(config.handoffs_dir) / "eval_feedback.md"
 
-    # Phase 1: Plan
-    if provided_spec is not None:
-        spec = provided_spec
-        with open(spec_path, "w") as f:
-            f.write(spec)
-    else:
-        print("[symphony] Phase 1: Planning...")
-        planner = PlannerAgent(config, run_id)
-        raw_output = planner.run(args.prompt)
-        spec = extract_spec(raw_output)
-        with open(spec_path, "w") as f:
-            f.write(spec)
-        print(f"[symphony] Spec written to {spec_path}")
+    # Token accumulators
+    total_input_tokens = 0
+    total_output_tokens = 0
+    per_agent_tokens: dict[str, dict] = {}
 
-    if args.dry_run:
-        print(f"[symphony] Dry run complete. Review the spec at {spec_path}")
-        print(spec)
-        return
+    def _accumulate(agent_name: str, usage: dict):
+        nonlocal total_input_tokens, total_output_tokens
+        inp = usage.get("input_tokens", 0)
+        out = usage.get("output_tokens", 0)
+        total_input_tokens += inp
+        total_output_tokens += out
+        if agent_name not in per_agent_tokens:
+            per_agent_tokens[agent_name] = {"input_tokens": 0, "output_tokens": 0}
+        per_agent_tokens[agent_name]["input_tokens"] += inp
+        per_agent_tokens[agent_name]["output_tokens"] += out
+
+    if args.resume:
+        # --continue mode: skip stale-handoff cleanup and Planner phase
+        if not spec_path.exists():
+            raise FileNotFoundError(
+                "--continue requires handoffs/spec.md to exist. "
+                "Run without --continue first, or use --spec to provide a spec."
+            )
+        print("[symphony] Resuming from existing handoffs (spec.md + eval_feedback.md).")
+        spec = spec_path.read_text()
+        feedback = eval_feedback_path.read_text() if eval_feedback_path.exists() else None
+    else:
+        # Read the --spec file BEFORE clearing handoffs, in case the spec
+        # lives inside the handoffs directory (e.g., handoffs/spec.md from
+        # a previous run).
+        provided_spec = None
+        if args.spec:
+            print(f"[symphony] Using provided spec: {args.spec}")
+            with open(args.spec, "r") as f:
+                provided_spec = f.read()
+
+        # Clear stale handoffs from previous run
+        stale_files = list(Path(config.handoffs_dir).glob("*"))
+        if stale_files:
+            print("[symphony] Cleared stale handoffs.")
+            for f in stale_files:
+                if f.is_file():
+                    f.unlink()
+
+        # Phase 1: Plan
+        if provided_spec is not None:
+            spec = provided_spec
+            with open(spec_path, "w") as f:
+                f.write(spec)
+        else:
+            print("[symphony] Phase 1: Planning...")
+            planner = PlannerAgent(config, run_id)
+            raw_output, planner_usage = planner.run(args.prompt)
+            _accumulate("planner", planner_usage)
+            spec = extract_spec(raw_output)
+            with open(spec_path, "w") as f:
+                f.write(spec)
+            print(f"[symphony] Spec written to {spec_path}")
+
+        feedback = None
+
+        if args.dry_run:
+            _print_token_summary(per_agent_tokens, total_input_tokens, total_output_tokens)
+            print(f"[symphony] Dry run complete. Review the spec at {spec_path}")
+            print(spec)
+            return
 
     # Phase 2-3: Generate ↔ Evaluate
     generator = GeneratorAgent(config, run_id)
     evaluator = EvaluatorAgent(config, run_id)
-    feedback = None
 
     for i in range(config.max_iterations):
         iteration = i + 1
 
         # Generate
         print(f"[symphony] Phase 2: Building (iteration {iteration}/{config.max_iterations})...")
-        generator.run(spec, feedback, iteration)
+        _, gen_usage = generator.run(spec, feedback, iteration)
+        _accumulate("generator", gen_usage)
 
         # Evaluate
         print(f"[symphony] Phase 3: Evaluating (iteration {iteration}/{config.max_iterations})...")
-        eval_output = evaluator.run(spec, iteration, prior_feedback=feedback)
+        eval_output, eval_usage = evaluator.run(spec, iteration, prior_feedback=feedback)
+        _accumulate("evaluator", eval_usage)
         with open(eval_feedback_path, "w") as f:
             f.write(eval_output)
 
         if re.search(r"#*\s*VERDICT:\s*PASS", eval_output, re.IGNORECASE):
             print(f"[symphony] PASS after {iteration} iteration(s)")
+            _print_token_summary(per_agent_tokens, total_input_tokens, total_output_tokens)
             return
 
         print(f"[symphony] FAIL on iteration {iteration}. Evaluator found issues.")
         feedback = eval_output
 
+    _print_token_summary(per_agent_tokens, total_input_tokens, total_output_tokens)
     print(f"[symphony] FAIL after {config.max_iterations} iterations.")
     # Print Bug Reports inline from last eval feedback
     bug_reports_match = re.search(r"(##\s*Bug Reports.*)", feedback, re.IGNORECASE | re.DOTALL)
