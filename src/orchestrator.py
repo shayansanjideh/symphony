@@ -130,6 +130,15 @@ def run(args):
 
     ensure_directories(config)
 
+    # Read the --spec file BEFORE clearing handoffs, in case the spec
+    # lives inside the handoffs directory (e.g., handoffs/spec.md from
+    # a previous run).
+    provided_spec = None
+    if args.spec:
+        print(f"[symphony] Using provided spec: {args.spec}")
+        with open(args.spec, "r") as f:
+            provided_spec = f.read()
+
     # Clear stale handoffs from previous run
     stale_files = list(Path(config.handoffs_dir).glob("*"))
     if stale_files:
@@ -144,10 +153,8 @@ def run(args):
     eval_feedback_path = Path(config.handoffs_dir) / "eval_feedback.md"
 
     # Phase 1: Plan
-    if args.spec:
-        print(f"[symphony] Using provided spec: {args.spec}")
-        with open(args.spec, "r") as f:
-            spec = f.read()
+    if provided_spec is not None:
+        spec = provided_spec
         with open(spec_path, "w") as f:
             f.write(spec)
     else:
