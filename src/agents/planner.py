@@ -10,7 +10,7 @@ class PlannerAgent(BaseAgent):
     def allowed_tools(self) -> list[str]:
         return self.config.planner_tools
 
-    def run(self, prompt: str) -> str:
+    def run(self, prompt: str) -> tuple[str, dict]:
         message = (
             f"User request: {prompt}\n\n"
             f"Read the system prompt carefully. Explore the codebase thoroughly, "
@@ -22,4 +22,5 @@ class PlannerAgent(BaseAgent):
             f"Scope the spec to be achievable within that budget.\n\n"
             f"Return ONLY the specification content (in markdown)."
         )
-        return self.invoke_claude(message)
+        text, usage = self.invoke_claude(message)
+        return text, usage

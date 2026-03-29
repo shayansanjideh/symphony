@@ -69,15 +69,16 @@ class BaseAgent:
         """Override in subclasses to provide an MCP server config."""
         return None
 
-    def invoke_claude(self, message: str) -> str:
+    def invoke_claude(self, message: str) -> tuple[str, dict]:
         """Invoke claude CLI with the given message, streaming output live.
 
         Retries once on timeout or non-zero exit (transient CLI errors).
+        Returns (stdout_text, usage_dict) where usage_dict has input_tokens and output_tokens.
         """
         cmd = [
             "claude", "-p", message,
             "--model", self.model,
-            "--output-format", "text",
+            "--output-format", "stream-json",
             "--system-prompt", self.system_prompt,
         ]
 
@@ -93,7 +94,7 @@ class BaseAgent:
         last_error = None
         for attempt in range(1, max_attempts + 1):
             try:
-                stdout, stderr, returncode, elapsed = self._run_streaming(cmd)
+                stdout, stderr, returncode, elapsed, usage = self._run_streaming(cmd)
             except subprocess.TimeoutExpired:
                 if attempt < max_attempts:
                     self.log("retry", {"reason": "timeout", "attempt": attempt})
@@ -106,10 +107,12 @@ class BaseAgent:
                 "elapsed_seconds": round(elapsed, 1),
                 "stdout_preview": stdout[:self._preview_len] if stdout else "",
                 "stderr_preview": stderr[:self._preview_len] if stderr else "",
+                "input_tokens": usage["input_tokens"],
+                "output_tokens": usage["output_tokens"],
             })
 
             if returncode == 0:
-                return stdout
+                return stdout, usage
 
             last_error = f"{self.name} agent failed (exit {returncode}): {stderr[:self._preview_len]}"
             if attempt < max_attempts:
@@ -118,11 +121,18 @@ class BaseAgent:
 
         raise RuntimeError(last_error)
 
-    def _run_streaming(self, cmd: list[str]) -> tuple[str, str, int, float]:
+    def _run_streaming(self, cmd: list[str]) -> tuple[str, str, int, float, dict]:
         """Run a subprocess, streaming stdout line-by-line while capturing it.
+
+        Expects newline-delimited JSON (stream-json format) from the claude CLI.
+        Prints text chunks in real-time as they arrive, and captures the final
+        result text and token usage from the result event.
 
         Stderr is drained concurrently in a background thread to prevent the
         pipe buffer from filling up and blocking the process.
+
+        Returns a 5-tuple: (stdout, stderr, returncode, elapsed, usage_dict)
+        where usage_dict = {"input_tokens": int, "output_tokens": int}.
         """
         start = time.time()
         proc = subprocess.Popen(
@@ -137,12 +147,39 @@ class BaseAgent:
         stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
         stderr_thread.start()
 
-        stdout_lines = []
+        raw_lines: list[str] = []
+        result_text: str | None = None
+        usage: dict = {"input_tokens": 0, "output_tokens": 0}
+
         try:
             for line in proc.stdout:
-                sys.stdout.write(f"  [{self.name}] {line}")
-                sys.stdout.flush()
-                stdout_lines.append(line)
+                raw_lines.append(line)
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    obj = json.loads(stripped)
+                except json.JSONDecodeError:
+                    continue
+
+                event_type = obj.get("type")
+
+                if event_type == "assistant":
+                    message = obj.get("message", {})
+                    content = message.get("content", [])
+                    for item in content:
+                        if isinstance(item, dict) and item.get("type") == "text":
+                            sys.stdout.write(f"  [{self.name}] {item['text']}")
+                            sys.stdout.flush()
+
+                elif event_type == "result":
+                    result_text = obj.get("result", "")
+                    raw_usage = obj.get("usage", {})
+                    usage = {
+                        "input_tokens": int(raw_usage.get("input_tokens", 0)),
+                        "output_tokens": int(raw_usage.get("output_tokens", 0)),
+                    }
+
             proc.wait(timeout=self.config.agent_timeout)
         except subprocess.TimeoutExpired:
             proc.kill()
@@ -151,7 +188,8 @@ class BaseAgent:
             stderr_thread.join()
 
         elapsed = time.time() - start
-        return "".join(stdout_lines), "".join(stderr_lines), proc.returncode, elapsed
+        stdout = result_text if result_text is not None else "".join(raw_lines)
+        return stdout, "".join(stderr_lines), proc.returncode, elapsed, usage
 
     def log(self, event: str, data: dict):
         """Append a log entry to the agent's JSONL log file."""

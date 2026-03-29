@@ -23,7 +23,7 @@ class SymphonyConfig:
 
     # Tool scoping
     planner_tools: list[str] = field(default_factory=lambda: [
-        "Read", "Glob", "Grep",
+        "Read", "Glob", "Grep", "Bash",
     ])
     generator_tools: list[str] = field(default_factory=lambda: [
         "Read", "Write", "Edit", "Bash", "Glob", "Grep",

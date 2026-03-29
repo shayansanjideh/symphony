@@ -103,3 +103,4 @@ The Generator will fill gaps in your spec by guessing. Every guess costs an iter
 - `Read` — Read file contents
 - `Glob` — Find files by pattern
 - `Grep` — Search file contents
+- `Bash` — **Read-only verification only.** Use `curl` to verify external API endpoints/signatures, `ls`/`find` to explore directory structure, or other non-mutating commands. You MUST NOT use Bash to write, modify, delete, or create files — only for verification.
