@@ -38,6 +38,13 @@ def extract_spec(planner_output: str) -> str:
                 break
         return "\n".join(lines[:cutoff]).strip()
 
+    def _is_valid_spec(text: str) -> bool:
+        """Return True if text looks like a valid spec."""
+        has_ac = bool(re.search(r"\*\*AC-\d+", text))
+        required_headings = {"## Overview", "## Scope", "## Functional Requirements", "## Acceptance Criteria"}
+        has_headings = sum(1 for h in required_headings if h in text) >= 2
+        return has_ac or has_headings
+
     # Look for the spec starting with the expected heading
     match = re.search(
         r"(# Feature Specification:.*)",
@@ -45,7 +52,9 @@ def extract_spec(planner_output: str) -> str:
         re.DOTALL,
     )
     if match:
-        return _strip_trailing_chat(match.group(1))
+        result = _strip_trailing_chat(match.group(1))
+        if _is_valid_spec(result):
+            return result
 
     # Fallback: look for any markdown heading that looks like a spec
     match = re.search(
@@ -54,10 +63,21 @@ def extract_spec(planner_output: str) -> str:
         re.DOTALL | re.IGNORECASE,
     )
     if match:
-        return _strip_trailing_chat(match.group(1))
+        result = _strip_trailing_chat(match.group(1))
+        if _is_valid_spec(result):
+            return result
 
-    # Last resort: return the full output
-    return planner_output.strip()
+    # Last resort: return the full output if valid
+    result = planner_output.strip()
+    if _is_valid_spec(result):
+        return result
+
+    # Nothing passed validation — raise a clear error
+    preview = result[:500]
+    raise ValueError(
+        f"Planner output does not appear to contain a valid spec: no acceptance criteria (AC-N) or "
+        f"expected markdown sections found. Planner raw output was:\n{preview}..."
+    )
 
 
 def parse_args():
@@ -109,6 +129,15 @@ def run(args):
     )
 
     ensure_directories(config)
+
+    # Clear stale handoffs from previous run
+    stale_files = list(Path(config.handoffs_dir).glob("*"))
+    if stale_files:
+        print("[symphony] Cleared stale handoffs.")
+        for f in stale_files:
+            if f.is_file():
+                f.unlink()
+
     run_id = f"{int(time.time())}"
 
     spec_path = Path(config.handoffs_dir) / "spec.md"
@@ -161,6 +190,12 @@ def run(args):
         feedback = eval_output
 
     print(f"[symphony] FAIL after {config.max_iterations} iterations.")
+    # Print Bug Reports inline from last eval feedback
+    bug_reports_match = re.search(r"(##\s*Bug Reports.*)", feedback, re.IGNORECASE | re.DOTALL)
+    if bug_reports_match:
+        print(bug_reports_match.group(1))
+    else:
+        print("[symphony] (No Bug Reports section found in last evaluation.)")
     print(f"[symphony] Review {eval_feedback_path} for remaining issues.")
 
 

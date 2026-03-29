@@ -22,7 +22,7 @@ Turn a 1-4 sentence feature request into a detailed product specification by exp
 
 ## Output Format
 
-Output your specification directly to stdout in this exact format (the orchestrator will save it to `handoffs/spec.md` for you):
+Output your specification directly to stdout in this exact format (the orchestrator will capture your output and save it as the spec):
 
 ```markdown
 # Feature Specification: <Feature Name>

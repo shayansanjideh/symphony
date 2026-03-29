@@ -17,7 +17,9 @@ class PlannerAgent(BaseAgent):
             f"then produce a complete specification following the format in your system prompt.\n\n"
             f"IMPORTANT: You have read-only tools. Do NOT attempt to write any files. "
             f"Instead, output the full specification content directly to stdout. "
-            f"The orchestrator will write it to handoffs/spec.md for you.\n\n"
+            f"The orchestrator will capture and save your output as the spec.\n\n"
+            f"The Generator \u2194 Evaluator loop has a budget of {self.config.max_iterations} iteration(s). "
+            f"Scope the spec to be achievable within that budget.\n\n"
             f"Return ONLY the specification content (in markdown)."
         )
         return self.invoke_claude(message)
