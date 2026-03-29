@@ -26,6 +26,8 @@ class EvaluatorAgent(BaseAgent):
         return None
 
     def run(self, spec: str, iteration: int, prior_feedback: str | None = None) -> str:
+        from pathlib import Path
+
         browser_instructions = ""
         if self.config.eval_mode in ("playwright", "both"):
             browser_instructions = (
@@ -51,11 +53,13 @@ class EvaluatorAgent(BaseAgent):
                 f"<prior_feedback>\n{prior_feedback}\n</prior_feedback>\n"
             )
 
+        generator_state_path = Path(self.config.handoffs_dir) / "generator_state.md"
+
         message = (
             f"This is evaluation iteration {iteration}.\n\n"
-            f"Read the spec at handoffs/spec.md.\n"
-            f"Read the generator state at handoffs/generator_state.md.\n"
-            f"Run `git diff main` to see what changed.\n"
+            f"<spec>\n{spec}\n</spec>\n\n"
+            f"Read the generator state at {generator_state_path}.\n"
+            f"Run `git diff {self.config.base_branch}` to see what changed.\n"
             f"Run the project build command.\n"
             f"{browser_instructions}\n"
             f"{regression_note}\n"

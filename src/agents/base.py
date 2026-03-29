@@ -3,6 +3,8 @@
 import json
 import os
 import subprocess
+import sys
+import threading
 import time
 from pathlib import Path
 
@@ -76,6 +78,7 @@ class BaseAgent:
             "claude", "-p", message,
             "--model", self.model,
             "--output-format", "text",
+            "--system-prompt", self.system_prompt,
         ]
 
         if self.allowed_tools:
@@ -116,12 +119,24 @@ class BaseAgent:
         raise RuntimeError(last_error)
 
     def _run_streaming(self, cmd: list[str]) -> tuple[str, str, int, float]:
-        """Run a subprocess, streaming stdout line-by-line while capturing it."""
-        import sys
+        """Run a subprocess, streaming stdout line-by-line while capturing it.
+
+        Stderr is drained concurrently in a background thread to prevent the
+        pipe buffer from filling up and blocking the process.
+        """
         start = time.time()
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         )
+        stderr_lines: list[str] = []
+
+        def _drain_stderr():
+            for line in proc.stderr:
+                stderr_lines.append(line)
+
+        stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+        stderr_thread.start()
+
         stdout_lines = []
         try:
             for line in proc.stdout:
@@ -132,9 +147,11 @@ class BaseAgent:
         except subprocess.TimeoutExpired:
             proc.kill()
             raise
+        finally:
+            stderr_thread.join()
+
         elapsed = time.time() - start
-        stderr = proc.stderr.read() if proc.stderr else ""
-        return "".join(stdout_lines), stderr, proc.returncode, elapsed
+        return "".join(stdout_lines), "".join(stderr_lines), proc.returncode, elapsed
 
     def log(self, event: str, data: dict):
         """Append a log entry to the agent's JSONL log file."""

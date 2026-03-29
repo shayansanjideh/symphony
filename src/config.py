@@ -12,6 +12,7 @@ class SymphonyConfig:
     max_iterations: int = 3
     eval_mode: str = "code_review"  # "code_review", "playwright", or "both"
     branch: str | None = None
+    base_branch: str = "main"
     verbose: bool = False
     agent_timeout: int = 1800  # seconds per agent invocation (30 min)
 

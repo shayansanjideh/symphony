@@ -22,14 +22,18 @@ class GeneratorAgent(BaseAgent):
                 f"Write a summary of what you did to handoffs/generator_state.md."
             )
         else:
+            from pathlib import Path
+            eval_feedback_path = Path(self.config.handoffs_dir) / "eval_feedback.md"
+            generator_state_path = Path(self.config.handoffs_dir) / "generator_state.md"
             message = (
                 f"This is iteration {iteration}. The Evaluator found issues.\n\n"
+                f"<spec>\n{spec}\n</spec>\n\n"
                 f"<eval_feedback>\n{feedback}\n</eval_feedback>\n\n"
-                f"The feedback is also at handoffs/eval_feedback.md.\n"
+                f"The feedback is also at {eval_feedback_path}.\n"
                 f"Make targeted fixes for ONLY the issues raised. "
                 f"Do not rewrite working code.\n\n"
                 f"Commit your fixes and run the build to verify.\n"
-                f"Update handoffs/generator_state.md with what you fixed."
+                f"Update {generator_state_path} with what you fixed."
             )
 
         if self.config.branch and iteration == 1:

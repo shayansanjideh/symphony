@@ -4,8 +4,10 @@
 import argparse
 import os
 import re
+import subprocess
 import sys
 import time
+from pathlib import Path
 
 from agents.planner import PlannerAgent
 from agents.generator import GeneratorAgent
@@ -71,16 +73,29 @@ def parse_args():
     parser.add_argument("--branch", default=None, help="Git branch name")
     parser.add_argument("--dry-run", action="store_true", help="Run Planner only, show spec, stop")
     parser.add_argument("--verbose", action="store_true", help="Widen JSONL log previews to 2000 chars (default: 500)")
+    parser.add_argument("--base-branch", default=None, help="Base branch for git diff (default: auto-detected from HEAD)")
     return parser.parse_args()
 
 
-def ensure_directories():
+def ensure_directories(config):
     """Create handoffs/ and logs/ directories if they don't exist."""
-    os.makedirs("handoffs", exist_ok=True)
-    os.makedirs("logs", exist_ok=True)
+    os.makedirs(config.handoffs_dir, exist_ok=True)
+    os.makedirs(config.logs_dir, exist_ok=True)
 
 
 def run(args):
+    # Detect the base branch before any commits are made
+    if args.base_branch:
+        base_branch = args.base_branch
+    else:
+        try:
+            base_branch = subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                text=True,
+            ).strip()
+        except subprocess.CalledProcessError:
+            base_branch = "main"
+
     config = SymphonyConfig(
         model=args.model,
         planner_model=args.planner_model or args.model,
@@ -89,30 +104,34 @@ def run(args):
         max_iterations=args.iterations,
         eval_mode=args.eval_mode,
         branch=args.branch,
+        base_branch=base_branch,
         verbose=args.verbose,
     )
 
-    ensure_directories()
+    ensure_directories(config)
     run_id = f"{int(time.time())}"
+
+    spec_path = Path(config.handoffs_dir) / "spec.md"
+    eval_feedback_path = Path(config.handoffs_dir) / "eval_feedback.md"
 
     # Phase 1: Plan
     if args.spec:
         print(f"[symphony] Using provided spec: {args.spec}")
         with open(args.spec, "r") as f:
             spec = f.read()
-        with open("handoffs/spec.md", "w") as f:
+        with open(spec_path, "w") as f:
             f.write(spec)
     else:
         print("[symphony] Phase 1: Planning...")
         planner = PlannerAgent(config, run_id)
         raw_output = planner.run(args.prompt)
         spec = extract_spec(raw_output)
-        with open("handoffs/spec.md", "w") as f:
+        with open(spec_path, "w") as f:
             f.write(spec)
-        print("[symphony] Spec written to handoffs/spec.md")
+        print(f"[symphony] Spec written to {spec_path}")
 
     if args.dry_run:
-        print("[symphony] Dry run complete. Review the spec at handoffs/spec.md")
+        print(f"[symphony] Dry run complete. Review the spec at {spec_path}")
         print(spec)
         return
 
@@ -131,7 +150,7 @@ def run(args):
         # Evaluate
         print(f"[symphony] Phase 3: Evaluating (iteration {iteration}/{config.max_iterations})...")
         eval_output = evaluator.run(spec, iteration, prior_feedback=feedback)
-        with open("handoffs/eval_feedback.md", "w") as f:
+        with open(eval_feedback_path, "w") as f:
             f.write(eval_output)
 
         if re.search(r"#*\s*VERDICT:\s*PASS", eval_output, re.IGNORECASE):
@@ -142,7 +161,7 @@ def run(args):
         feedback = eval_output
 
     print(f"[symphony] FAIL after {config.max_iterations} iterations.")
-    print("[symphony] Review handoffs/eval_feedback.md for remaining issues.")
+    print(f"[symphony] Review {eval_feedback_path} for remaining issues.")
 
 
 def main():

@@ -264,9 +264,9 @@ Every harness component encodes an assumption about what the model can't do alon
 
 ## Roadmap
 
-- [ ] **v0.1** — Core loop: Planner → Generator ↔ Evaluator via `claude -p`, with progress streaming
-- [ ] **v0.2** — `--dry-run` mode (plan-only with user approval gate), resume from handoff state
-- [ ] **v0.3** — Playwright integration for visual and interactive testing
+- [x] **v0.1** — Core loop: Planner → Generator ↔ Evaluator via `claude -p`, with progress streaming and `--verbose` flag
+- [x] **v0.2** — `--dry-run` mode (plan-only with user approval gate), resume from handoff state, retry logic on transient CLI errors
+- [x] **v0.3** — Playwright integration for visual and interactive testing
 - [ ] **v0.4** — Sprint decomposition for large features (auto-chunk into phases) with parallel execution
 - [ ] **v1.0** — Stable release with cost estimation, prompt library, and comprehensive docs
 
