@@ -3,6 +3,7 @@
 
 import argparse
 import os
+import re
 import sys
 import time
 
@@ -10,6 +11,36 @@ from agents.planner import PlannerAgent
 from agents.generator import GeneratorAgent
 from agents.evaluator import EvaluatorAgent
 from config import SymphonyConfig
+
+
+def extract_spec(planner_output: str) -> str:
+    """Extract the specification from planner output.
+
+    The Planner has read-only tools, so it returns the spec via stdout.
+    Sometimes the output includes preamble text before or a summary after
+    the actual spec.  This function extracts the spec content, falling back
+    to the full output if no clear spec boundary is found.
+    """
+    # Look for the spec starting with the expected heading
+    match = re.search(
+        r"(# Feature Specification:.*)",
+        planner_output,
+        re.DOTALL,
+    )
+    if match:
+        return match.group(1).strip()
+
+    # Fallback: look for any markdown heading that looks like a spec
+    match = re.search(
+        r"(# (?:Feature|Specification|Spec).*)",
+        planner_output,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if match:
+        return match.group(1).strip()
+
+    # Last resort: return the full output
+    return planner_output.strip()
 
 
 def parse_args():
@@ -57,7 +88,8 @@ def run(args):
     else:
         print("[symphony] Phase 1: Planning...")
         planner = PlannerAgent(config, run_id)
-        spec = planner.run(args.prompt)
+        raw_output = planner.run(args.prompt)
+        spec = extract_spec(raw_output)
         with open("handoffs/spec.md", "w") as f:
             f.write(spec)
         print("[symphony] Spec written to handoffs/spec.md")

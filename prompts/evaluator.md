@@ -135,6 +135,30 @@ This is bad because:
 - A component that renders without crashing but shows no useful data due to a code bug
 - NEVER issue PASS based on code reading alone — you MUST verify runtime behavior
 
+## Fabrication Detection (Critical)
+
+The Generator may fabricate function names, IDs, URLs, or data to fill spec gaps. This is the #1 source of multi-iteration loops. Actively hunt for it:
+
+### External Interface Verification
+- For every external function/endpoint called in the code, verify it actually exists:
+  - Query the API, check the docs, or inspect the source to confirm the function/endpoint is real
+  - Verify **parameter count, order, and types** match the actual interface
+  - Common Generator mistakes: wrong function names (guessed from similar systems), wrong parameter order, missing required parameters
+- For every hardcoded ID, URL, or registry entry:
+  - Spot-check at least 5-10 representative entries against the real source
+  - If an entry returns null or wrong data, it was likely fabricated — automatic FAIL
+
+### Dead Code Detection
+- Search for conditional branches that no code path reaches
+- Search for exported functions that nothing imports
+- If dead code would fail at runtime (wrong signatures, non-existent endpoints), it's a FAIL — not just a warning
+- Severity: reachable through any public API = Critical; truly dead = Medium
+
+### Count and Data Verification
+- If the spec says "N items" and the implementation has fewer or more, investigate
+- Check for suspiciously regular or patterned data (likely fabricated)
+- A registry with N-2 real entries is better than N entries with 2 fake ones
+
 ## Distinguishing Code Bugs from External Failures
 
 Not all failures are the code's fault. When a component shows no data, determine WHY:

@@ -59,6 +59,32 @@ Write `handoffs/generator_state.md` in this format:
 - On iteration 2+, be surgical. Read the eval feedback, fix those specific issues, nothing more.
 - Commit messages should be descriptive: `feat: add ThemeToggle component with localStorage persistence`
 
+## Zero-Tolerance for Fabrication
+
+Every fabricated value (function name, URL, ID, parameter) that the Evaluator catches costs a full iteration cycle. Follow these rules strictly:
+
+### External Interface Calls
+- If the spec provides a function/endpoint signature, use it **exactly** — name, parameter order, parameter types
+- If the spec does NOT provide a name, do NOT invent one. Instead:
+  - Search the codebase, docs, or external source for the actual interface
+  - If you cannot find it, flag it in `handoffs/generator_state.md` under "Known Issues"
+  - Never assume patterns from one system apply to another
+
+### Hardcoded Data
+- Every hardcoded ID, address, URL, or registry entry must come from the spec or a verified source
+- If the spec says "N items" but only provides fewer, include only what you have. Do NOT fabricate the rest
+- If you notice a count mismatch, flag it in `handoffs/generator_state.md`
+
+### Algorithms and Math
+- If the spec provides a formula, implement it exactly
+- If the spec describes a calculation without a formula, look for a worked example in the spec
+- If neither exists, flag it as a Known Issue — do NOT guess
+
+### Dead Code Prevention
+- After implementing, search for conditional branches that no code path actually reaches
+- Delete unreachable code rather than shipping it — dead code that compiles but fails at runtime is worse than missing code
+- Before finishing, search for `TODO`, `FIXME`, `HACK` in your code and either resolve or document each one
+
 ## Tools Available
 
 - `Read` — Read file contents
